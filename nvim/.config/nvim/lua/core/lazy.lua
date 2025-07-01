@@ -13,7 +13,7 @@ require("lazy").setup({
 	require("plugins.gitsigns"),
 	require("plugins.which_key"),
 	require("plugins.indent_blankline"),
-	require("plugins.themes.gruvbox"),
+	require("plugins.themes.nightfox"),
 	require("plugins.telescope"),
 	require("plugins.lsp.lazydev"),
 	require("plugins.lsp.lsp"),
