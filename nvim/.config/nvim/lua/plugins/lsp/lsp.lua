@@ -167,7 +167,26 @@ return {
 		local servers = {
 			clangd = {},
 			gopls = {},
-			pyright = {},
+			-- basedpyright: type-checking, completion, hover. Auto-detects ./.venv.
+			basedpyright = {
+				settings = {
+					basedpyright = {
+						analysis = {
+							typeCheckingMode = "standard",
+							diagnosticMode = "openFilesOnly",
+							-- ruff owns import sorting; avoid duplicate "organize imports".
+							disableOrganizeImports = true,
+						},
+					},
+				},
+			},
+			-- ruff: linting + import sort + formatting (fast). Let basedpyright do
+			-- the type/hover work; silence ruff's hover so they don't overlap.
+			ruff = {
+				on_attach = function(client)
+					client.server_capabilities.hoverProvider = false
+				end,
+			},
 			rust_analyzer = {},
 			marksman = {},
 			ltex = {},
@@ -242,19 +261,25 @@ return {
 		})
 		require("mason-tool-installer").setup({ ensure_installed = ensure_installed })
 
+		-- mason-lspconfig v2 (nvim 0.11) removed the `handlers` API. Configure each
+		-- server through the native `vim.lsp.config()` and let mason-lspconfig's
+		-- `automatic_enable` turn them on.
+		vim.lsp.config("*", { capabilities = capabilities })
+		for server_name, server in pairs(servers) do
+			if server_name ~= "ocamllsp" then -- ocamllsp is configured separately below
+				vim.lsp.config(server_name, server)
+			end
+		end
+
+		-- Enable exactly the servers defined above (ocamllsp excluded; it's started
+		-- manually). Passing an explicit list keeps other installed-but-unwanted
+		-- servers (e.g. a leftover `pyright`) from auto-attaching alongside basedpyright.
+		local enable = vim.tbl_filter(function(name)
+			return name ~= "ocamllsp"
+		end, vim.tbl_keys(servers))
 		require("mason-lspconfig").setup({
-			ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
-			automatic_installation = false,
-			handlers = {
-				function(server_name)
-					local server = servers[server_name] or {}
-					-- This handles overriding only values explicitly passed
-					-- by the server configuration above. Useful when disabling
-					-- certain features of an LSP (for example, turning off formatting for ts_ls)
-					server.capabilities = vim.tbl_deep_extend("force", {}, capabilities, server.capabilities or {})
-					require("lspconfig")[server_name].setup(server)
-				end,
-			},
+			ensure_installed = {}, -- installs are handled by mason-tool-installer above
+			automatic_enable = enable,
 		})
 
 		-- Manually setup ocamllsp since it's not managed by Mason
